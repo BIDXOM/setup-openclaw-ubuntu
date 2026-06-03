@@ -3,8 +3,9 @@ set -euo pipefail
 
 # ============================================================
 # OpenClaw Ubuntu 原生源码部署脚本
-# 适合默认用户 ubuntu
+# 默认用户：ubuntu
 # 不使用 Docker
+# 不创建自定义分支
 # 适合后续自己修改源码
 #
 # 部署目录：
@@ -21,7 +22,6 @@ set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/openclaw/openclaw.git}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/openclaw}"
-BRANCH_NAME="${BRANCH_NAME:-custom/my-openclaw}"
 SWAP_SIZE="${SWAP_SIZE:-12G}"
 NODE_OPTIONS_VALUE="${NODE_OPTIONS_VALUE:---max-old-space-size=12288}"
 
@@ -32,7 +32,6 @@ echo "当前用户: $(whoami)"
 echo "HOME: $HOME"
 echo "仓库地址: $REPO_URL"
 echo "安装目录: $INSTALL_DIR"
-echo "分支名称: $BRANCH_NAME"
 echo "Swap 大小: $SWAP_SIZE"
 echo "Node 内存参数: $NODE_OPTIONS_VALUE"
 echo "============================================================"
@@ -114,10 +113,7 @@ npm -v
 echo ""
 echo "==> 6. 启用 corepack / pnpm"
 
-# corepack enable 需要写 /usr/bin，所以要 sudo
 sudo corepack enable || true
-
-# 某些环境下普通用户 prepare 会失败，所以做双保险
 corepack prepare pnpm@latest --activate || sudo corepack prepare pnpm@latest --activate
 
 echo ""
@@ -128,7 +124,6 @@ mkdir -p "$HOME/.local/bin"
 
 pnpm config set global-bin-dir "$HOME/.local/share/pnpm/bin"
 
-# 写入 bashrc，避免重复写入
 if ! grep -q 'PNPM_HOME="$HOME/.local/share/pnpm/bin"' "$HOME/.bashrc"; then
   cat >> "$HOME/.bashrc" <<'EOF'
 
@@ -169,9 +164,7 @@ fi
 cd "$INSTALL_DIR"
 
 echo ""
-echo "==> 10. 创建/切换自定义分支"
-
-git switch -c "$BRANCH_NAME" 2>/dev/null || git switch "$BRANCH_NAME"
+echo "==> 10. 保持当前仓库默认分支"
 
 echo "当前分支:"
 git branch --show-current
