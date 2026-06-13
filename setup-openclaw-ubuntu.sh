@@ -111,12 +111,13 @@ echo "npm 版本:"
 npm -v
 
 echo ""
-echo "==> 6. 启用 corepack / pnpm"
+echo "==> 6. 安装 pnpm"
 
-# Corepack 自动下载 pnpm，不需要确认
-export COREPACK_ENABLE_AUTO_DOWNLOAD=1
-sudo corepack enable || true
-corepack prepare pnpm@latest --activate || sudo corepack prepare pnpm@latest --activate
+# 用 npm 全局安装 pnpm（比 corepack 可靠，不会弹确认框）
+npm install -g pnpm 2>/dev/null || true
+
+# 确保 pnpm 可用
+which pnpm >/dev/null 2>&1 || echo "  ⚠️  pnpm 安装失败，请手动安装: npm install -g pnpm"
 
 echo ""
 echo "==> 7. 配置 pnpm 路径"
