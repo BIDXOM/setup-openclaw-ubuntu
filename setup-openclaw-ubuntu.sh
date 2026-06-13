@@ -222,6 +222,14 @@ echo "============================================================"
 echo ""
 echo "==> 16. 运行 Onboarding（非交互式）"
 
+# 读取 DeepSeek API Key（如果没设，gateway 先起，稍后配置）
+DEEPSEEK_KEY="${DEEPSEEK_API_KEY:-}"
+if [ -z "$DEEPSEEK_KEY" ]; then
+  echo "  未设置 DEEPSEEK_API_KEY，跳过模型配置。"
+  echo "  之后可运行: openclaw configure --deepseek-api-key <你的key>"
+  echo ""
+fi
+
 # 生成随机 Token
 GW_TOKEN=$(openssl rand -hex 24 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(24))")
 echo "  生成的 Gateway Token: $GW_TOKEN"
@@ -238,10 +246,11 @@ openclaw onboard \
   --non-interactive --accept-risk \
   --flow manual \
   --mode local \
+  ${DEEPSEEK_KEY:+--deepseek-api-key "$DEEPSEEK_KEY"} \
   --gateway-auth token \
   --gateway-token "$GW_TOKEN" \
   --gateway-port 18789 \
-  --gateway-bind loopback \
+  --gateway-bind lan \
   --install-daemon \
   --skip-channels \
   --skip-search \
