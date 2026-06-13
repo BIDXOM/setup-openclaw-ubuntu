@@ -157,6 +157,7 @@ echo "==> 9. 下载 OpenClaw 源码"
 
 cd "$HOME"
 
+export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
 if [ ! -d "$INSTALL_DIR/.git" ]; then
   git clone "$REPO_URL" "$INSTALL_DIR"
 else
