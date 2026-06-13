@@ -254,6 +254,36 @@ print('配置文件已更新')
 
   echo ""
   echo "✅ 平台连接配置已完成！"
+echo ""
+  echo "============================================================"
+  echo "📋 平台注册信息（请复制填入平台后台）"
+  echo "============================================================"
+  echo ""
+
+  # 提取网关 token
+  GW_TOKEN=""
+  GW_CFG="$HOME/.openclaw/openclaw.json"
+  if [ -f "$GW_CFG" ]; then
+    GW_TOKEN=$(python3 -c "import json; print(json.load(open('$GW_CFG')).get('gateway',{}).get('auth',{}).get('token',''))" 2>/dev/null || true)
+  fi
+
+  # 获取内部 IP
+  INT_IP=$(hostname -I | awk '{print $1}')
+  if [ -z "$INT_IP" ]; then
+    INT_IP=$(ip route get 1 | awk '{print $7; exit}' 2>/dev/null || echo "unknown")
+  fi
+
+  # 从 .env.production 获取平台 URL
+
+  echo "  服务器内部 IP:     $INT_IP"
+  echo "  OpenClaw Base URL: http://$INT_IP:18789"
+  echo "  Gateway URL:       http://$INT_IP:18789"
+  echo "  Gateway Token:     ${GW_TOKEN:-（未找到，请手动查 openclaw.json）}"
+  echo ""
+  echo "  在平台创建智能体时填入以上信息。"
+  echo "  如果使用域名（如 bee-qtagent01.coincrafters.cn），"
+  echo "  请将 Gateway URL 改为 https://你的域名"
+  echo "============================================================"
 else
   echo "  ⚠️  未检测到 $OPENCLAW_CONFIG（Onboarding 尚未完成）"
   echo "  请先完成 Onboarding，然后重新配置："
