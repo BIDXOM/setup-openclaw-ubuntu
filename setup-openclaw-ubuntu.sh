@@ -222,6 +222,46 @@ echo "============================================================"
 echo ""
 echo "下一步执行："
 echo ""
+echo ""
+echo "==> 16. 配置平台连接所需设置"
+echo "如果 Onboarding 已完成，自动启用 admin-http-rpc 和 OpenAI API..."
+
+OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
+if [ -f "$OPENCLAW_CONFIG" ]; then
+  echo "检测到 $OPENCLAW_CONFIG，开始配置..."
+
+  echo "  启用 admin-http-rpc 插件..."
+  openclaw plugins enable admin-http-rpc 2>/dev/null || true
+
+  echo "  启用 OpenAI 兼容 API..."
+  python3 -c "
+import json, os
+path = os.path.expanduser('$OPENCLAW_CONFIG')
+with open(path, 'r') as f:
+    cfg = json.load(f)
+gw = cfg.setdefault('gateway', {})
+http = gw.setdefault('http', {})
+eps = http.setdefault('endpoints', {})
+cc = eps.setdefault('chatCompletions', {})
+cc['enabled'] = True
+with open(path, 'w') as f:
+    json.dump(cfg, f, indent=2)
+print('配置文件已更新')
+" 2>/dev/null || echo "  ⚠️  更新配置文件失败"
+
+  echo "  重启 gateway..."
+  openclaw gateway restart 2>/dev/null || echo "  ⚠️  重启失败，请稍后手动执行: openclaw gateway restart"
+
+  echo ""
+  echo "✅ 平台连接配置已完成！"
+else
+  echo "  ⚠️  未检测到 $OPENCLAW_CONFIG（Onboarding 尚未完成）"
+  echo "  请先完成 Onboarding，然后重新配置："
+  echo "    openclaw plugins enable admin-http-rpc"
+  echo '    echo '"'"'{"gateway":{"http":{"endpoints":{"chatCompletions":{"enabled":true}}}}}'"'"' | openclaw config patch --stdin'
+  echo "    openclaw gateway restart"
+  echo ""
+fi
 echo "  source ~/.bashrc"
 echo "  cd ~/openclaw"
 echo "  openclaw onboard --install-daemon"
@@ -250,7 +290,7 @@ echo "  # 1. 启用 admin-http-rpc（平台 Admin RPC 连接必需）"
 echo "  openclaw plugins enable admin-http-rpc"
 echo ""
 echo "  # 2. 启用 OpenAI 兼容 API（平台 /v1/chat/completions 必需）"
-echo '  echo '"'"'{"gateway":{"http":{"endpoints":{"chatCompletions":{"enabled":true}}}}}'"'"' | openclaw config patch --stdin''
+echo '  echo '"'"'{"gateway":{"http":{"endpoints":{"chatCompletions":{"enabled":true}}}}}'"'"' | openclaw config patch --stdin'
 echo ""
 echo "  # 3. 重启 gateway 生效"
 echo "  openclaw gateway restart"
