@@ -220,137 +220,129 @@ echo "============================================================"
 echo "OpenClaw 源码环境准备完成"
 echo "============================================================"
 echo ""
-echo "下一步执行："
+echo "==> 16. 运行 Onboarding（非交互式）"
+
+# 生成随机 Token
+GW_TOKEN=$(openssl rand -hex 24 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(24))")
+echo "  生成的 Gateway Token: $GW_TOKEN"
+
 echo ""
+echo "  执行 openclaw onboard（跳过模型、渠道、搜索等交互配置）..."
+echo "  如需添加 AI 模型提供方，之后可运行: openclaw configure"
 echo ""
-echo "==> 16. 配置平台连接所需设置"
-echo "如果 Onboarding 已完成，自动启用 admin-http-rpc 和 OpenAI API..."
 
-OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
-if [ -f "$OPENCLAW_CONFIG" ]; then
-  echo "检测到 $OPENCLAW_CONFIG，开始配置..."
+# 跳过已存在的本地会话确认
+export OPENCLAW_SUPPRESS_LOCAL_TERM_CHECK=1
 
-  echo "  启用 admin-http-rpc 插件..."
-  openclaw plugins enable admin-http-rpc 2>/dev/null || true
+openclaw onboard \
+  --non-interactive --accept-risk \
+  --flow manual \
+  --mode local \
+  --gateway-auth token \
+  --gateway-token "$GW_TOKEN" \
+  --gateway-port 18789 \
+  --gateway-bind loopback \
+  --install-daemon \
+  --skip-channels \
+  --skip-search \
+  --skip-skills \
+  --skip-hooks \
+  --skip-ui 2>&1 || {
+    echo ""
+    echo "  ⚠️  非交互式 Onboarding 遇到问题，尝试常规方式..."
+    echo "  请在终端手动执行："
+    echo "    source ~/.bashrc"
+    echo "    cd ~/openclaw"
+    echo "    openclaw onboard --install-daemon"
+    echo ""
+    echo "  完成后再执行："
+    echo "    bash $0 --post-onboard"
+    echo ""
+    exit 1
+  }
 
-  echo "  启用 OpenAI 兼容 API..."
-  python3 -c "
+echo ""
+echo "==> 17. 启用平台连接所需设置"
+
+echo "  启用 admin-http-rpc 插件..."
+openclaw plugins enable admin-http-rpc 2>/dev/null || echo "  ⚠️  启用 admin-http-rpc 失败"
+
+echo "  启用 OpenAI 兼容 API..."
+python3 << 'PYEOF'
 import json, os
-path = os.path.expanduser('$OPENCLAW_CONFIG')
-with open(path, 'r') as f:
+path = os.path.expanduser(os.environ.get('HOME','')) + '/.openclaw/openclaw.json'
+if os.path.exists(path):
+    with open(path, 'r') as f:
+        cfg = json.load(f)
+    gw = cfg.setdefault('gateway', {})
+    http = gw.setdefault('http', {})
+    eps = http.setdefault('endpoints', {})
+    cc = eps.setdefault('chatCompletions', {})
+    cc['enabled'] = True
+    with open(path, 'w') as f:
+        json.dump(cfg, f, indent=2)
+    print('  配置文件已更新')
+else:
+    print('  配置文件不存在，跳过')
+    exit(1)
+PYEOF
+
+echo "  修复 bundled 渠道依赖..."
+openclaw doctor --fix 2>/dev/null || echo "  ⚠️  doctor 修复失败，可手动执行 openclaw doctor --fix"
+
+echo ""
+echo "==> 18. 重启 gateway"
+openclaw gateway restart 2>/dev/null || {
+  echo "  ⚠️  重启失败，尝试手动启动..."
+  sudo systemctl restart openclaw-gateway 2>/dev/null || echo "  ⚠️  请稍后手动重启 gateway"
+}
+
+echo ""
+echo "============================================================"
+echo "✅ 部署完成！"
+echo "============================================================"
+echo ""
+
+# 提取网关 token（从配置文件中读取）
+GW_TOKEN_DISPLAY=""
+GW_CFG="$HOME/.openclaw/openclaw.json"
+if [ -f "$GW_CFG" ]; then
+  GW_TOKEN_DISPLAY=*** -c "
+import json
+with open('$GW_CFG') as f:
     cfg = json.load(f)
-gw = cfg.setdefault('gateway', {})
-http = gw.setdefault('http', {})
-eps = http.setdefault('endpoints', {})
-cc = eps.setdefault('chatCompletions', {})
-cc['enabled'] = True
-with open(path, 'w') as f:
-    json.dump(cfg, f, indent=2)
-print('配置文件已更新')
-" 2>/dev/null || echo "  ⚠️  更新配置文件失败"
-
-  echo "  修复 bundled 渠道依赖..."
-  openclaw doctor --fix 2>/dev/null || echo "  ⚠️  doctor 修复失败，可稍后手动执行 openclaw doctor --fix"
-  echo "  重启 gateway..."
-  openclaw gateway restart 2>/dev/null || echo "  ⚠️  重启失败，请稍后手动执行: openclaw gateway restart"
-
-  echo ""
-  echo "✅ 平台连接配置已完成！"
-echo ""
-  echo "============================================================"
-  echo "📋 平台注册信息（请复制填入平台后台）"
-  echo "============================================================"
-  echo ""
-
-  # 提取网关 token
-  GW_TOKEN=""
-  GW_CFG="$HOME/.openclaw/openclaw.json"
-  if [ -f "$GW_CFG" ]; then
-    GW_TOKEN=$(python3 -c "import json; print(json.load(open('$GW_CFG')).get('gateway',{}).get('auth',{}).get('token',''))" 2>/dev/null || true)
-  fi
-
-  # 获取内部 IP
-  INT_IP=$(hostname -I | awk '{print $1}')
-  if [ -z "$INT_IP" ]; then
-    INT_IP=$(ip route get 1 | awk '{print $7; exit}' 2>/dev/null || echo "unknown")
-  fi
-
-  # 从 .env.production 获取平台 URL
-
-  echo "  服务器内部 IP:     $INT_IP"
-  echo "  OpenClaw Base URL: http://$INT_IP:18789"
-  echo "  Gateway URL:       http://$INT_IP:18789"
-  echo "  Gateway Token:     ${GW_TOKEN:-（未找到，请手动查 openclaw.json）}"
-  echo ""
-  echo "  在平台创建智能体时填入以上信息。"
-  echo "  如果使用域名（如 bee-qtagent01.coincrafters.cn），"
-  echo "  请将 Gateway URL 改为 https://你的域名"
-  echo "============================================================"
+print(cfg.get('gateway',{}).get('auth',{}).get('token','（未找到）'))
+" 2>/dev/null || GW_TOKEN_DISPLAY="$GW_TOKEN"
 else
-  echo "  ⚠️  未检测到 $OPENCLAW_CONFIG（Onboarding 尚未完成）"
-  echo "  请先完成 Onboarding，然后重新配置："
-  echo "    openclaw plugins enable admin-http-rpc"
-  echo "    openclaw doctor --fix"
-  echo '    echo '"'"'{"gateway":{"http":{"endpoints":{"chatCompletions":{"enabled":true}}}}}'"'"' | openclaw config patch --stdin'
-  echo "    openclaw gateway restart"
-  echo ""
+  GW_TOKEN_DISPLAY="$GW_TOKEN"
 fi
-echo "  source ~/.bashrc"
-echo "  cd ~/openclaw"
-echo "  openclaw onboard --install-daemon"
-echo ""
-echo "如果 openclaw 命令不可用，就用："
-echo ""
-echo "  cd ~/openclaw"
-echo "  pnpm openclaw onboard --install-daemon"
-echo ""
-echo "Onboarding 推荐选择："
-echo ""
-echo "  Setup mode: Manual setup"
-echo "  Gateway port: 18789"
-echo "  Gateway bind: Loopback / 127.0.0.1"
-echo "  Gateway protection: Token"
-echo "  Tailscale exposure: Off"
-echo "  Telegram DM policy: Allowlist"
-echo "  Telegram allowFrom: 你的 Telegram 数字 ID"
-echo "  Web search: Skip for now 或 DuckDuckGo"
-echo "  Optional plugins: Skip for now"
-echo "  Hooks: Skip for now"
-echo "============================================================"
-echo "❗ 重要：Onboarding 完成后，务必执行以下步骤："
-echo ""
-echo "  # 1. 启用 admin-http-rpc（平台 Admin RPC 连接必需）"
-echo "  openclaw plugins enable admin-http-rpc"
-echo ""
-echo "  # 2. 启用 OpenAI 兼容 API（平台 /v1/chat/completions 必需）"
-echo '  echo '"'"'{"gateway":{"http":{"endpoints":{"chatCompletions":{"enabled":true}}}}}'"'"' | openclaw config patch --stdin'
-echo ""
-echo "  # 3. 重启 gateway 生效"
-echo "  openclaw gateway restart"
-echo ""
-echo "============================================================"
-echo ""
 
+# 获取内部 IP
+INT_IP=$(hostname -I | awk '{print $1}')
+if [ -z "$INT_IP" ]; then
+  INT_IP=$(ip route get 1 | awk '{print $7; exit}' 2>/dev/null || echo "unknown")
+fi
+
+echo "============================================================"
+echo "📋 平台注册信息"
+echo "============================================================"
+echo ""
+echo "  服务器内部 IP:     $INT_IP"
+echo "  OpenClaw Base URL: http://$INT_IP:18789"
+echo "  Gateway URL:       http://$INT_IP:18789"
+echo "  Gateway Token:     $GW_TOKEN_DISPLAY"
+echo ""
+echo "  在平台创建智能体时填入以上信息。"
+echo "  如果使用域名，请将 Gateway URL 改为 https://你的域名"
+echo "============================================================"
 echo ""
 echo "常用命令："
 echo ""
-echo "  openclaw gateway status"
-echo "  openclaw gateway restart"
-echo "  openclaw config validate"
-echo "  openclaw configure"
-echo "  openclaw chat"
+echo "  openclaw gateway status      查看网关状态"
+echo "  openclaw gateway restart     重启网关"
+echo "  openclaw configure           配置模型、渠道等"
+echo "  openclaw chat                命令行对话"
 echo ""
-echo "如果你后面修改源码，建议："
-echo ""
-echo "  cd ~/openclaw"
-echo "  git status"
-echo "  pnpm ui:build"
-echo "  openclaw gateway restart"
-echo ""
-echo "注意：本脚本默认不执行 pnpm build。"
-echo "如果机器内存升级到 8G/16G 后，可以手动尝试："
-echo ""
-echo "  cd ~/openclaw"
-echo "  NODE_OPTIONS=\"--max-old-space-size=12288\" pnpm build"
-echo ""
+echo "注意：本脚本未配置 AI 模型提供方。"
+echo "如需添加，请执行: openclaw configure"
 echo "============================================================"
