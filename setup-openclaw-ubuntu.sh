@@ -249,6 +249,8 @@ with open(path, 'w') as f:
 print('配置文件已更新')
 " 2>/dev/null || echo "  ⚠️  更新配置文件失败"
 
+  echo "  修复 bundled 渠道依赖..."
+  openclaw doctor --fix 2>/dev/null || echo "  ⚠️  doctor 修复失败，可稍后手动执行 openclaw doctor --fix"
   echo "  重启 gateway..."
   openclaw gateway restart 2>/dev/null || echo "  ⚠️  重启失败，请稍后手动执行: openclaw gateway restart"
 
@@ -288,6 +290,7 @@ else
   echo "  ⚠️  未检测到 $OPENCLAW_CONFIG（Onboarding 尚未完成）"
   echo "  请先完成 Onboarding，然后重新配置："
   echo "    openclaw plugins enable admin-http-rpc"
+  echo "    openclaw doctor --fix"
   echo '    echo '"'"'{"gateway":{"http":{"endpoints":{"chatCompletions":{"enabled":true}}}}}'"'"' | openclaw config patch --stdin'
   echo "    openclaw gateway restart"
   echo ""
