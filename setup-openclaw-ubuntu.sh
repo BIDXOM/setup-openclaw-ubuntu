@@ -113,6 +113,8 @@ npm -v
 echo ""
 echo "==> 6. 启用 corepack / pnpm"
 
+# Corepack 自动下载 pnpm，不需要确认
+export COREPACK_ENABLE_AUTO_DOWNLOAD=1
 sudo corepack enable || true
 corepack prepare pnpm@latest --activate || sudo corepack prepare pnpm@latest --activate
 
