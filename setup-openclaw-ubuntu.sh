@@ -250,7 +250,7 @@ echo "  # 1. 启用 admin-http-rpc（平台 Admin RPC 连接必需）"
 echo "  openclaw plugins enable admin-http-rpc"
 echo ""
 echo "  # 2. 启用 OpenAI 兼容 API（平台 /v1/chat/completions 必需）"
-echo '  openclaw config patch --raw '"'"'{"gateway":{"http":{"endpoints":{"chatCompletions":{"enabled":true}}}}}"'"'"''
+echo '  echo '"'"'{"gateway":{"http":{"endpoints":{"chatCompletions":{"enabled":true}}}}}'"'"' | openclaw config patch --stdin''
 echo ""
 echo "  # 3. 重启 gateway 生效"
 echo "  openclaw gateway restart"
