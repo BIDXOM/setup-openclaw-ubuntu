@@ -113,19 +113,26 @@ npm -v
 echo ""
 echo "==> 6. 安装 pnpm"
 
-# 用 npm 全局安装 pnpm（比 corepack 可靠，不会弹确认框）
-npm install -g pnpm 2>/dev/null || true
+# 配置 npm 全局路径为本地目录（避免 sudo 权限问题）
+npm config set prefix "$HOME/.npm-global" 2>/dev/null || true
+export PATH="$HOME/.npm-global/bin:$PATH"
 
-# 确保 pnpm 可用
-which pnpm >/dev/null 2>&1 || echo "  ⚠️  pnpm 安装失败，请手动安装: npm install -g pnpm"
-
+# 用 npm 安装 pnpm（不发弹框）
+echo "  安装 pnpm..."
+npm install -g pnpm 2>&1 || {
+  echo "  npm 全局安装失败，尝试 sudo..."
+  sudo npm install -g pnpm 2>&1 || {
+    echo "  ⚠️  pnpm 安装失败，将使用 npx pnpm 替代"
+    alias pnpm="npx -y pnpm"
+  }
+}
 echo ""
 echo "==> 7. 配置 pnpm 路径"
 
 mkdir -p "$HOME/.local/share/pnpm/bin"
 mkdir -p "$HOME/.local/bin"
 
-pnpm config set global-bin-dir "$HOME/.local/share/pnpm/bin"
+command -v pnpm >/dev/null 2>&1 && pnpm config set global-bin-dir "$HOME/.local/share/pnpm/bin" || true
 
 if ! grep -q 'PNPM_HOME="$HOME/.local/share/pnpm/bin"' "$HOME/.bashrc"; then
   cat >> "$HOME/.bashrc" <<'EOF'
@@ -192,7 +199,9 @@ echo "==> 13. 创建 openclaw 全局 wrapper 命令"
 cat > "$HOME/.local/bin/openclaw" <<'EOF'
 #!/usr/bin/env bash
 cd "$HOME/openclaw" || exit 1
-exec pnpm openclaw "$@"
+# Try pnpm directly, then npx as fallback
+  PNPM_CMD=$(command -v pnpm 2>/dev/null || echo "npx -y pnpm")
+  exec $PNPM_CMD openclaw "$@" 
 EOF
 
 chmod +x "$HOME/.local/bin/openclaw"
