@@ -389,12 +389,12 @@ echo ""
 GW_TOKEN_DISPLAY=""
 GW_CFG="$HOME/.openclaw/openclaw.json"
 if [ -f "$GW_CFG" ]; then
-  GW_TOKEN_DISPLAY=*** -c "
+  GW_TOKEN_DISPLAY=$(python3 -c "
 import json
 with open('$GW_CFG') as f:
     cfg = json.load(f)
 print(cfg.get('gateway',{}).get('auth',{}).get('token','（未找到）'))
-" 2>/dev/null || GW_TOKEN_DISPLAY="$GW_TOKEN"
+" 2>/dev/null) || GW_TOKEN_DISPLAY="$GW_TOKEN"
 else
   GW_TOKEN_DISPLAY="$GW_TOKEN"
 fi
@@ -405,13 +405,26 @@ if [ -z "$INT_IP" ]; then
   INT_IP=$(ip route get 1 | awk '{print $7; exit}' 2>/dev/null || echo "unknown")
 fi
 
+# 获取公网 IP（优先用国内源）
+PUBLIC_IP=""
+for ip_svc in ip.sb ifconfig.me api.ipify.org icanhazip.com; do
+  PUBLIC_IP=$(curl -s --connect-timeout 3 "$ip_svc" 2>/dev/null | tr -d '\n')
+  if [ -n "$PUBLIC_IP" ] && echo "$PUBLIC_IP" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+    break
+  fi
+  PUBLIC_IP=""
+done
+
 echo "============================================================"
 echo "📋 平台注册信息"
 echo "============================================================"
 echo ""
 echo "  服务器内部 IP:     $INT_IP"
+if [ -n "$PUBLIC_IP" ]; then
+  echo "  服务器公网 IP:     $PUBLIC_IP"
+fi
 echo "  OpenClaw Base URL: http://$INT_IP:18789"
-echo "  Gateway URL:       http://$INT_IP:18789"
+echo "  Gateway URL:       http://${PUBLIC_IP:-$INT_IP}:18789"
 echo "  Gateway Token:     $GW_TOKEN_DISPLAY"
 echo ""
 echo "  在平台创建智能体时填入以上信息。"
