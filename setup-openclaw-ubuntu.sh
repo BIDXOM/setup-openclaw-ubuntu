@@ -296,14 +296,29 @@ path = os.path.expanduser(os.environ.get('HOME','')) + '/.openclaw/openclaw.json
 if os.path.exists(path):
     with open(path, 'r') as f:
         cfg = json.load(f)
+
+    # 启用 OpenAI 兼容 API
     gw = cfg.setdefault('gateway', {})
     http = gw.setdefault('http', {})
     eps = http.setdefault('endpoints', {})
     cc = eps.setdefault('chatCompletions', {})
     cc['enabled'] = True
+
+    # Telegram 渠道默认开放
+    channels = cfg.setdefault('channels', {})
+    tg = channels.setdefault('telegram', {})
+    tg['dmPolicy'] = 'open'
+    tg['allowFrom'] = ['*']
+
+    # 飞书渠道默认开放
+    feishu = channels.setdefault('feishu', {})
+    feishu['enabled'] = True
+    feishu['dmPolicy'] = 'open'
+    feishu['allowFrom'] = ['*']
+
     with open(path, 'w') as f:
         json.dump(cfg, f, indent=2)
-    print('  配置文件已更新')
+    print('  配置文件已更新（含 Telegram/飞书开放模式）')
 else:
     print('  配置文件不存在，跳过')
     exit(1)
