@@ -25,6 +25,10 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/openclaw}"
 SWAP_SIZE="${SWAP_SIZE:-12G}"
 NODE_OPTIONS_VALUE="${NODE_OPTIONS_VALUE:---max-old-space-size=12288}"
 
+# 飞书渠道配置（部署前通过环境变量预设，跳过手动输入）
+FEISHU_APP_ID="${FEISHU_APP_ID:-}"
+FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}"
+
 echo "============================================================"
 echo "OpenClaw Ubuntu 源码部署"
 echo "============================================================"
@@ -243,6 +247,16 @@ if [ -z "$DEEPSEEK_KEY" ]; then
   echo ""
 fi
 
+# 读取飞书 App ID / App Secret
+if [ -z "$FEISHU_APP_ID" ] || [ -z "$FEISHU_APP_SECRET" ]; then
+  echo "  未设置 FEISHU_APP_ID / FEISHU_APP_SECRET，跳过飞书渠道配置。"
+  echo "  之后可用 openclaw channels login --channel feishu 手动添加。"
+  echo ""
+  SKIP_FEISHU=true
+else
+  SKIP_FEISHU=false
+fi
+
 # 生成随机 Token
 GW_TOKEN=$(openssl rand -hex 24 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(24))")
 echo "  生成的 Gateway Token: $GW_TOKEN"
@@ -286,8 +300,15 @@ openclaw onboard \
 echo ""
 echo "==> 17. 启用平台连接所需设置"
 
-echo "  启用 admin-http-rpc 插件..."
-openclaw plugins enable admin-http-rpc 2>/dev/null || echo "  ⚠️  启用 admin-http-rpc 失败"
+echo "  安装插件..."
+echo "  安装 admin-http-rpc 插件..."
+openclaw plugins install admin-http-rpc 2>/dev/null || echo "  ⚠️  admin-http-rpc 安装或启用失败"
+
+# 飞书插件
+if [ "$SKIP_FEISHU" = false ]; then
+  echo "  安装 @openclaw/feishu 插件..."
+  openclaw plugins install @openclaw/feishu 2>/dev/null || echo "  ⚠️  @openclaw/feishu 安装失败，请稍后手动安装"
+fi
 
 echo "  启用 OpenAI 兼容 API..."
 python3 << 'PYEOF'
@@ -310,11 +331,35 @@ if os.path.exists(path):
     tg['dmPolicy'] = 'open'
     tg['allowFrom'] = ['*']
 
-    # 飞书渠道默认开放
-    feishu = channels.setdefault('feishu', {})
-    feishu['enabled'] = True
-    feishu['dmPolicy'] = 'open'
-    feishu['allowFrom'] = ['*']
+    # 启用 admin-http-rpc 插件
+    plugins = cfg.setdefault('plugins', {})
+    entries = plugins.setdefault('entries', {})
+    ahp = entries.setdefault('admin-http-rpc', {})
+    ahp['enabled'] = True
+
+    # 飞书渠道默认开放 + 自动配置 App ID / App Secret
+    feishu_id = os.environ.get('FEISHU_APP_ID', '')
+    feishu_secret = os.environ.get('FEISHU_APP_SECRET', '')
+    if feishu_id and feishu_secret:
+        # 启用飞书插件
+        f_plugin = entries.setdefault('feishu', {})
+        f_plugin['enabled'] = True
+
+        feishu = channels.setdefault('feishu', {})
+        feishu['enabled'] = True
+        feishu['dmPolicy'] = 'open'
+        feishu['allowFrom'] = ['*']
+        feishu['defaultAccount'] = 'default'
+        feishu['accounts'] = {
+            'default': {
+                'name': 'AI Agent',
+                'appId': feishu_id,
+                'appSecret': feishu_secret,
+            }
+        }
+        print('  飞书渠道已配置（开放模式）')
+    else:
+        print('  环境变量 FEISHU_APP_ID / FEISHU_APP_SECRET 未设置，跳过飞书配置')
 
     with open(path, 'w') as f:
         json.dump(cfg, f, indent=2)
