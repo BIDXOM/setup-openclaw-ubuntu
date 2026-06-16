@@ -57,7 +57,7 @@ fi
 echo ""
 echo "==> 1. 刷新 sudo 权限"
 echo "如果这里要求输入密码，第一次需要输入 ubuntu 用户密码。"
-sudo -v
+sudo -n true
 
 echo ""
 echo "==> 2. 配置当前用户免密 sudo"
