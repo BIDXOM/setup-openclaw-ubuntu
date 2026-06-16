@@ -55,15 +55,28 @@ if [ "$(whoami)" != "ubuntu" ]; then
 fi
 
 echo ""
-echo "==> 1. 刷新 sudo 权限"
-echo "如果这里要求输入密码，第一次需要输入 ubuntu 用户密码。"
-sudo -n true
+echo "==> 1. 检查 sudo 权限（需免密，平台 Worker SSH 无法交互输入密码）"
+if ! sudo -n true 2>/dev/null; then
+  echo "错误：当前用户 $(whoami) 未配置免密 sudo。"
+  echo "请先执行（将 ubuntu 换成你的用户名）："
+  echo "  echo 'ubuntu ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/99-ubuntu-nopasswd"
+  echo "  sudo chmod 440 /etc/sudoers.d/99-ubuntu-nopasswd"
+  echo "  sudo visudo -c"
+  echo "验证：sudo -n true && echo OK"
+  exit 1
+fi
+echo "sudo 权限 OK"
 
 echo ""
 echo "==> 2. 配置当前用户免密 sudo"
-echo "$(whoami) ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/$(whoami)" >/dev/null
-sudo chmod 440 "/etc/sudoers.d/$(whoami)"
-sudo visudo -cf "/etc/sudoers.d/$(whoami)"
+if sudo -n true 2>/dev/null; then
+  echo "已具备免密 sudo，跳过 sudoers 写入。"
+else
+  SUDOERS_FILE="/etc/sudoers.d/99-$(whoami)-nopasswd"
+  echo "$(whoami) ALL=(ALL) NOPASSWD: ALL" | sudo tee "$SUDOERS_FILE" >/dev/null
+  sudo chmod 440 "$SUDOERS_FILE"
+  sudo visudo -cf "$SUDOERS_FILE"
+fi
 
 echo ""
 echo "==> 3. 更新系统并安装基础依赖"
